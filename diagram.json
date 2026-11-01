@@ -1,0 +1,544 @@
+{
+  "version": 1,
+  "author": "Coursework project",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "wokwi-arduino-mega",
+      "id": "mega",
+      "top": 20,
+      "left": -20,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-ili9341",
+      "id": "tft",
+      "top": 35,
+      "left": 520,
+      "rotate": 90,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-microsd-card",
+      "id": "sd",
+      "top": 390,
+      "left": 180,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-ds1307",
+      "id": "rtc",
+      "top": 430,
+      "left": 400,
+      "attrs": {
+        "initTime": "now"
+      }
+    },
+    {
+      "type": "wokwi-ky-040",
+      "id": "encoder",
+      "top": -180,
+      "left": 930,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "back",
+      "top": -85,
+      "left": 430,
+      "attrs": {
+        "color": "yellow",
+        "label": "BACK"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "home",
+      "top": -85,
+      "left": 530,
+      "attrs": {
+        "color": "blue",
+        "label": "HOME"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "m1",
+      "top": -85,
+      "left": 640,
+      "attrs": {
+        "color": "green",
+        "label": "M1"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "m2",
+      "top": -85,
+      "left": 720,
+      "attrs": {
+        "color": "green",
+        "label": "M2"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "m3",
+      "top": -85,
+      "left": 800,
+      "attrs": {
+        "color": "green",
+        "label": "M3"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "m4",
+      "top": -85,
+      "left": 880,
+      "attrs": {
+        "color": "green",
+        "label": "M4"
+      }
+    },
+    {
+      "type": "wokwi-rgb-led",
+      "id": "status",
+      "top": 315,
+      "left": 830,
+      "attrs": {
+        "common": "cathode"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "rr",
+      "top": 285,
+      "left": 690,
+      "rotate": 90,
+      "attrs": {
+        "value": "330"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "rg",
+      "top": 325,
+      "left": 690,
+      "rotate": 90,
+      "attrs": {
+        "value": "330"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "rb",
+      "top": 365,
+      "left": 690,
+      "rotate": 90,
+      "attrs": {
+        "value": "330"
+      }
+    },
+    {
+      "type": "wokwi-buzzer",
+      "id": "buzzer",
+      "top": 445,
+      "left": 815,
+      "attrs": {
+        "volume": "0.1"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "title",
+      "top": -205,
+      "left": -10,
+      "attrs": {
+        "text": "Arduino Mega PC Control Panel",
+        "fontSize": "24",
+        "color": "blue"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "controlsLabel",
+      "top": -205,
+      "left": 610,
+      "attrs": {
+        "text": "CONTROLS",
+        "fontSize": "16",
+        "color": "green"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "storageLabel",
+      "top": 370,
+      "left": 250,
+      "attrs": {
+        "text": "STORAGE / RTC",
+        "fontSize": "14",
+        "color": "blue"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "statusLabel",
+      "top": 275,
+      "left": 790,
+      "attrs": {
+        "text": "STATUS",
+        "fontSize": "14",
+        "color": "red"
+      }
+    }
+  ],
+  "connections": [
+    [
+      "mega:51",
+      "tft:MOSI",
+      "green",
+      [
+        "h0"
+      ]
+    ],
+    [
+      "mega:52",
+      "tft:SCK",
+      "orange",
+      [
+        "h0"
+      ]
+    ],
+    [
+      "mega:48",
+      "tft:CS",
+      "purple",
+      [
+        "h0"
+      ]
+    ],
+    [
+      "mega:47",
+      "tft:D/C",
+      "blue",
+      [
+        "h0"
+      ]
+    ],
+    [
+      "mega:5V",
+      "tft:VCC",
+      "red",
+      [
+        "h0"
+      ]
+    ],
+    [
+      "mega:GND.1",
+      "tft:GND",
+      "black",
+      [
+        "h0"
+      ]
+    ],
+    [
+      "mega:50",
+      "sd:DO",
+      "limegreen",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "mega:51",
+      "sd:DI",
+      "green",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "mega:52",
+      "sd:SCK",
+      "orange",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "mega:49",
+      "sd:CS",
+      "purple",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "mega:5V",
+      "sd:VCC",
+      "red",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "mega:GND.1",
+      "sd:GND",
+      "black",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "mega:20",
+      "rtc:SDA",
+      "green",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "mega:21",
+      "rtc:SCL",
+      "blue",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "mega:5V",
+      "rtc:5V",
+      "red",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "mega:GND.1",
+      "rtc:GND",
+      "black",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "mega:2",
+      "encoder:CLK",
+      "green",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "mega:3",
+      "encoder:DT",
+      "blue",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "mega:4",
+      "encoder:SW",
+      "yellow",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "mega:5V",
+      "encoder:VCC",
+      "red",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "mega:GND.1",
+      "encoder:GND",
+      "black",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "mega:5",
+      "back:1.l",
+      "yellow",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "mega:6",
+      "home:1.l",
+      "blue",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "mega:7",
+      "m1:1.l",
+      "green",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "mega:8",
+      "m2:1.l",
+      "green",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "mega:9",
+      "m3:1.l",
+      "green",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "mega:10",
+      "m4:1.l",
+      "green",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "encoder:GND",
+      "back:2.l",
+      "black",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "back:2.l",
+      "home:2.l",
+      "black",
+      [
+        "h0"
+      ]
+    ],
+    [
+      "home:2.l",
+      "m1:2.l",
+      "black",
+      [
+        "h0"
+      ]
+    ],
+    [
+      "m1:2.l",
+      "m2:2.l",
+      "black",
+      [
+        "h0"
+      ]
+    ],
+    [
+      "m2:2.l",
+      "m3:2.l",
+      "black",
+      [
+        "h0"
+      ]
+    ],
+    [
+      "m3:2.l",
+      "m4:2.l",
+      "black",
+      [
+        "h0"
+      ]
+    ],
+    [
+      "mega:11",
+      "rr:1",
+      "red",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "rr:2",
+      "status:R",
+      "red",
+      [
+        "h35",
+        "v0"
+      ]
+    ],
+    [
+      "mega:12",
+      "rg:1",
+      "green",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "rg:2",
+      "status:G",
+      "green",
+      [
+        "h35",
+        "v0"
+      ]
+    ],
+    [
+      "mega:13",
+      "rb:1",
+      "blue",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "rb:2",
+      "status:B",
+      "blue",
+      [
+        "h35",
+        "v0"
+      ]
+    ],
+    [
+      "mega:GND.1",
+      "status:COM",
+      "black",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "mega:14",
+      "buzzer:2",
+      "violet",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "status:COM",
+      "buzzer:1",
+      "black",
+      [
+        "v70",
+        "h0"
+      ]
+    ]
+  ],
+  "serialMonitor": {
+    "display": "always",
+    "newline": "lf"
+  },
+  "dependencies": {}
+}
