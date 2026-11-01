@@ -183,30 +183,82 @@ void drawText(int16_t x, int16_t y, const String &text, uint8_t color = 1,
 
 void drawConnectionDot() {
   tft.setDrawColor(0);
-  tft.drawDisc(123, 4, 3);
-  if (pcOnline || demoMode) {
-    tft.setDrawColor(1);
-    tft.drawDisc(123, 4, 2);
+  if (pcOnline) tft.drawDisc(122, 5, 3);
+  else if (demoMode) tft.drawCircle(122, 5, 3);
+  else {
+    tft.drawLine(119, 2, 125, 8);
+    tft.drawLine(125, 2, 119, 8);
   }
 }
 
 void drawHeader(const char *title) {
   tft.clearBuffer();
-  drawText(0, 0, title);
   tft.setDrawColor(1);
-  tft.drawHLine(0, 10, 128);
+  tft.drawRBox(0, 0, 128, 11, 2);
+  drawText(4, 2, title, 0);
   drawConnectionDot();
 }
 
 void drawFooter() {
   tft.setDrawColor(1);
-  tft.drawHLine(0, 53, 128);
+  tft.drawHLine(0, 54, 128);
   String timeText = timestamp();
   drawText(0, 56, timeText.length() >= 16 ? timeText.substring(11, 16) : timeText);
-  drawText(102, 56, sdReady ? "SD OK" : "SD --");
+  drawText(48, 56, pcOnline ? "PC LINK" : (demoMode ? "DEMO" : "OFF"));
+  if (sdReady) {
+    tft.drawRBox(101, 55, 27, 9, 2);
+    drawText(104, 56, "SD OK", 0);
+  } else {
+    tft.drawFrame(101, 55, 27, 9);
+    drawText(104, 56, "NO SD");
+  }
 }
 
-void drawMenu(const char *const items[], uint8_t count, uint8_t selected) {
+void drawMenuIcon(uint8_t index, int16_t x, int16_t y, uint8_t color,
+                  bool numbered) {
+  tft.setDrawColor(color);
+  if (numbered) {
+    tft.drawFrame(x, y, 9, 8);
+    drawText(x + 2, y, String(index + 1), color);
+    return;
+  }
+
+  switch (index) {
+    case 0: // System bars
+      tft.drawHLine(x, y + 1, 8);
+      tft.drawHLine(x, y + 4, 6);
+      tft.drawHLine(x, y + 7, 4);
+      break;
+    case 1: // Weather
+      tft.drawCircle(x + 4, y + 4, 3);
+      tft.drawPixel(x + 4, y);
+      tft.drawPixel(x + 4, y + 8);
+      break;
+    case 2: // Applications grid
+      tft.drawFrame(x, y, 4, 4);
+      tft.drawFrame(x + 5, y, 4, 4);
+      tft.drawFrame(x, y + 5, 4, 4);
+      tft.drawFrame(x + 5, y + 5, 4, 4);
+      break;
+    case 3: // Media play
+      tft.drawTriangle(x + 1, y, x + 1, y + 8, x + 8, y + 4);
+      break;
+    case 4: // Log page
+      tft.drawFrame(x + 1, y, 7, 9);
+      tft.drawHLine(x + 3, y + 3, 4);
+      tft.drawHLine(x + 3, y + 6, 4);
+      break;
+    default: // Settings sliders
+      tft.drawHLine(x, y + 2, 9);
+      tft.drawHLine(x, y + 6, 9);
+      tft.drawDisc(x + 3, y + 2, 1);
+      tft.drawDisc(x + 6, y + 6, 1);
+      break;
+  }
+}
+
+void drawMenu(const char *const items[], uint8_t count, uint8_t selected,
+              bool numbered = false) {
   uint8_t first = 0;
   if (count > 4 && selected > 1) {
     first = selected - 1;
@@ -217,10 +269,13 @@ void drawMenu(const char *const items[], uint8_t count, uint8_t selected) {
     int16_t y = 13 + row * 10;
     if (index == selected) {
       tft.setDrawColor(1);
-      tft.drawRBox(0, y - 1, 128, 9, 2);
-      drawText(3, y, String("> ") + items[index], 0);
+      tft.drawRBox(0, y - 1, 128, 10, 2);
+      drawMenuIcon(index, 3, y, 0, numbered);
+      drawText(16, y, items[index], 0);
+      tft.drawTriangle(121, y + 1, 121, y + 7, 125, y + 4);
     } else {
-      drawText(2, y, String("  ") + items[index]);
+      drawMenuIcon(index, 3, y, 1, numbered);
+      drawText(16, y, items[index]);
     }
   }
 }
@@ -232,10 +287,25 @@ void drawHome() {
 }
 
 void drawSystemValues() {
-  drawText(0, 13, "CPU " + String(systemData.cpuLoad, 0) + "%  " + String(systemData.cpuTemp, 0) + "C");
-  drawText(0, 23, "GPU " + String(systemData.gpuLoad, 0) + "%  " + String(systemData.gpuTemp, 0) + "C");
-  drawText(0, 33, "RAM " + String(systemData.ramUsed, 1) + "/" + String(systemData.ramTotal, 0) + "GB");
-  drawText(0, 43, "DSK " + String(systemData.diskUsed, 0) + "% D" + String(systemData.downloadMbps, 1));
+  const char *labels[] = {"CPU", "GPU", "RAM", "DSK"};
+  float values[] = {
+    systemData.cpuLoad,
+    systemData.gpuLoad,
+    systemData.ramTotal > 0 ? systemData.ramUsed * 100.0 / systemData.ramTotal : 0,
+    systemData.diskUsed
+  };
+  for (uint8_t i = 0; i < 4; i++) {
+    int16_t y = 14 + i * 10;
+    uint8_t value = constrain(static_cast<int>(values[i]), 0, 100);
+    drawText(0, y, labels[i]);
+    tft.setDrawColor(1);
+    tft.drawFrame(20, y + 1, 73, 7);
+    if (value) tft.drawBox(22, y + 3, value * 69 / 100, 3);
+    String suffix = String(value) + "%";
+    if (i == 0) suffix = String(value) + "/" + String(systemData.cpuTemp, 0);
+    if (i == 1) suffix = String(value) + "/" + String(systemData.gpuTemp, 0);
+    drawText(96, y, suffix);
+  }
 }
 
 void drawSystem() {
@@ -245,10 +315,13 @@ void drawSystem() {
 }
 
 void drawWeatherValues() {
-  drawText(0, 13, weatherData.city + "  " + String(weatherData.temperature, 1) + "C");
-  drawText(0, 23, weatherData.condition);
-  drawText(0, 33, "Feels " + String(weatherData.feelsLike, 1) + "C");
-  drawText(0, 43, "Hum " + String(weatherData.humidity) + "% Wind " + String(weatherData.wind, 1));
+  drawText(1, 16, String(weatherData.temperature, 0) + "C", 1, 2);
+  tft.setDrawColor(1);
+  tft.drawVLine(45, 14, 35);
+  drawText(52, 15, weatherData.city);
+  drawText(52, 25, weatherData.condition);
+  drawText(52, 35, "Feels " + String(weatherData.feelsLike, 0) + "C");
+  drawText(52, 45, "H" + String(weatherData.humidity) + "% W" + String(weatherData.wind, 1));
 }
 
 void drawWeather() {
@@ -259,24 +332,45 @@ void drawWeather() {
 
 void drawLauncher() {
   drawHeader("APPS");
-  drawMenu(launcherItems, LAUNCHER_COUNT, launcherSelection);
+  drawMenu(launcherItems, LAUNCHER_COUNT, launcherSelection, true);
   drawFooter();
 }
 
 void drawMedia() {
   drawHeader("MEDIA");
-  drawText(0, 13, "M1 Previous");
-  drawText(0, 23, "M2 Play/Pause");
-  drawText(0, 33, "M3 Next   M4 Mute");
-  drawText(0, 43, "Rotate: volume");
+  const int16_t x[] = {1, 33, 65, 97};
+  for (uint8_t i = 0; i < 4; i++) {
+    tft.setDrawColor(1);
+    tft.drawRFrame(x[i], 15, 29, 25, 3);
+    drawText(x[i] + 9, 43, String("M") + (i + 1));
+  }
+  tft.drawTriangle(8, 22, 8, 33, 17, 27);
+  tft.drawVLine(20, 22, 11);
+  tft.drawVLine(41, 22, 11);
+  tft.drawVLine(48, 22, 11);
+  tft.drawTriangle(73, 22, 73, 33, 82, 27);
+  tft.drawVLine(85, 22, 11);
+  tft.drawLine(105, 24, 110, 24);
+  tft.drawLine(110, 24, 115, 20);
+  tft.drawLine(110, 24, 115, 29);
+  tft.drawLine(116, 21, 122, 30);
   drawFooter();
 }
 
 void drawLogsValues() {
-  drawText(0, 13, String("SD: ") + (sdReady ? "READY" : "ERROR"));
-  drawText(0, 23, String("Logging: ") + (loggingEnabled ? "ON" : "OFF"));
-  drawText(0, 33, "Interval: " + String(logIntervalSec) + "s");
-  drawText(0, 43, "Records: " + String(logRecords));
+  tft.setDrawColor(1);
+  tft.drawRFrame(0, 14, 62, 17, 2);
+  tft.drawRFrame(66, 14, 62, 17, 2);
+  tft.drawRFrame(0, 34, 62, 17, 2);
+  tft.drawRFrame(66, 34, 62, 17, 2);
+  drawText(4, 16, "SD");
+  drawText(27, 16, sdReady ? "READY" : "ERROR");
+  drawText(70, 16, "LOG");
+  drawText(96, 16, loggingEnabled ? "ON" : "OFF");
+  drawText(4, 36, "EVERY");
+  drawText(34, 36, String(logIntervalSec) + "s");
+  drawText(70, 36, "ROWS");
+  drawText(96, 36, String(logRecords));
 }
 
 void drawLogs() {
@@ -297,10 +391,21 @@ void drawSettingsItem(uint8_t index, bool selected) {
   int16_t y = 13 + index * 10;
   if (selected) {
     tft.setDrawColor(1);
-    tft.drawRBox(0, y - 1, 128, 9, 2);
-    drawText(3, y, String("> ") + labels[index] + " " + value, 0);
+    tft.drawBox(0, y, 3, 8);
+    drawText(7, y, labels[index]);
+  } else drawText(7, y, labels[index]);
+
+  if (index == 0) {
+    tft.setDrawColor(1);
+    tft.drawRFrame(96, y - 1, 31, 10, 3);
+    drawText(103, y, value);
   } else {
-    drawText(2, y, String("  ") + labels[index] + " " + value);
+    bool enabled = index == 1 ? demoMode : (index == 2 ? soundEnabled : loggingEnabled);
+    tft.setDrawColor(1);
+    if (enabled) tft.drawRBox(102, y - 1, 25, 10, 4);
+    else tft.drawRFrame(102, y - 1, 25, 10, 4);
+    tft.setDrawColor(enabled ? 0 : 1);
+    tft.drawDisc(enabled ? 121 : 108, y + 4, 3);
   }
 }
 
@@ -405,7 +510,7 @@ int8_t readEncoderDelta() {
   int current = digitalRead(ENC_CLK);
   int8_t delta = 0;
   if (current != lastClk && current == LOW) {
-    delta = digitalRead(ENC_DT) == HIGH ? 1 : -1;
+    delta = digitalRead(ENC_DT) == HIGH ? -1 : 1;
   }
   lastClk = current;
   return delta;
