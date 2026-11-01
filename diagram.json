@@ -11,12 +11,13 @@
       "attrs": {}
     },
     {
-      "type": "wokwi-ili9341",
+      "type": "board-ssd1306",
       "id": "tft",
-      "top": 35,
+      "top": 55,
       "left": 520,
-      "rotate": 90,
-      "attrs": {}
+      "attrs": {
+        "i2cAddress": "0x3c"
+      }
     },
     {
       "type": "wokwi-microsd-card",
@@ -196,32 +197,16 @@
   ],
   "connections": [
     [
-      "mega:51",
-      "tft:MOSI",
+      "mega:20",
+      "tft:SDA",
       "green",
       [
         "h0"
       ]
     ],
     [
-      "mega:52",
-      "tft:SCK",
-      "orange",
-      [
-        "h0"
-      ]
-    ],
-    [
-      "mega:48",
-      "tft:CS",
-      "purple",
-      [
-        "h0"
-      ]
-    ],
-    [
-      "mega:47",
-      "tft:D/C",
+      "mega:21",
+      "tft:SCL",
       "blue",
       [
         "h0"
@@ -462,7 +447,7 @@
     [
       "mega:11",
       "rr:1",
-      "red",
+      "",
       [
         "v0"
       ]
@@ -479,7 +464,7 @@
     [
       "mega:12",
       "rg:1",
-      "green",
+      "",
       [
         "v0"
       ]
@@ -496,7 +481,7 @@
     [
       "mega:13",
       "rb:1",
-      "blue",
+      "",
       [
         "v0"
       ]
@@ -513,7 +498,7 @@
     [
       "mega:GND.1",
       "status:COM",
-      "black",
+      "",
       [
         "v0"
       ]
@@ -521,7 +506,7 @@
     [
       "mega:14",
       "buzzer:2",
-      "violet",
+      "",
       [
         "v0"
       ]

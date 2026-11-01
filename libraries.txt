@@ -1,3 +1,2 @@
-Adafruit GFX Library
-Adafruit ILI9341
+U8g2
 RTClib

@@ -1,13 +1,10 @@
 #include <SPI.h>
 #include <SD.h>
 #include <Wire.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_ILI9341.h>
+#include <U8g2lib.h>
 #include <RTClib.h>
 
 // Arduino Mega hardware SPI: MISO=50, MOSI=51, SCK=52.
-constexpr uint8_t TFT_CS = 48;
-constexpr uint8_t TFT_DC = 47;
 constexpr uint8_t SD_CS = 49;
 
 constexpr uint8_t ENC_CLK = 2;
@@ -24,7 +21,11 @@ constexpr uint8_t LED_G = 12;
 constexpr uint8_t LED_B = 13;
 constexpr uint8_t BUZZER = 14;
 
-Adafruit_ILI9341 tft(TFT_CS, TFT_DC);
+#ifdef DISPLAY_REAL_SSD1309
+U8G2_SSD1309_128X64_NONAME2_F_HW_I2C tft(U8G2_R0, 46);
+#else
+U8G2_SSD1306_128X64_NONAME_F_HW_I2C tft(U8G2_R0, U8X8_PIN_NONE);
+#endif
 RTC_DS1307 rtc;
 
 enum Screen : uint8_t {
@@ -83,8 +84,7 @@ unsigned long lastPcPacket = 0;
 String serialLine;
 
 const char *homeItems[] = {
-  "System monitor", "Weather", "Application launcher",
-  "Multimedia", "Logs", "Settings"
+  "SYSTEM", "WEATHER", "APPS", "MEDIA", "LOGS", "SETTINGS"
 };
 
 const char *launcherItems[] = {
@@ -126,6 +126,7 @@ void appendEvent(const String &eventType, const String &details) {
   File file = SD.open("EVENTS.CSV", FILE_WRITE);
   if (!file) {
     sdReady = false;
+    digitalWrite(SD_CS, HIGH);
     return;
   }
   file.print(timestamp());
@@ -134,6 +135,7 @@ void appendEvent(const String &eventType, const String &details) {
   file.print(',');
   file.println(details);
   file.close();
+  digitalWrite(SD_CS, HIGH);
 }
 
 void appendSystemLog() {
@@ -142,6 +144,7 @@ void appendSystemLog() {
   File file = SD.open("SYSTEM.CSV", FILE_WRITE);
   if (!file) {
     sdReady = false;
+    digitalWrite(SD_CS, HIGH);
     return;
   }
 
@@ -160,6 +163,7 @@ void appendSystemLog() {
   file.print(systemData.uploadMbps, 1); file.print(',');
   file.println(pcOnline ? 1 : 0);
   file.close();
+  digitalWrite(SD_CS, HIGH);
   logRecords++;
 }
 
@@ -170,154 +174,144 @@ void sendCommand(const String &command) {
   beep();
 }
 
-void drawText(int16_t x, int16_t y, const String &text, uint16_t color,
-              uint8_t size = 2) {
-  tft.setCursor(x, y);
-  tft.setTextColor(color);
-  tft.setTextSize(size);
-  tft.print(text);
+void drawText(int16_t x, int16_t y, const String &text, uint8_t color = 1,
+              uint8_t size = 1) {
+  tft.setDrawColor(color);
+  tft.setFont(size == 2 ? u8g2_font_10x20_tf : u8g2_font_5x8_tf);
+  tft.drawUTF8(x, y, text.c_str());
 }
 
 void drawConnectionDot() {
-  if (pcOnline) {
-    tft.fillCircle(300, 15, 6, ILI9341_GREEN);
-  } else if (demoMode) {
-    tft.fillCircle(300, 15, 6, ILI9341_YELLOW);
-  } else {
-    tft.fillCircle(300, 15, 6, ILI9341_RED);
+  tft.setDrawColor(0);
+  tft.drawDisc(123, 4, 3);
+  if (pcOnline || demoMode) {
+    tft.setDrawColor(1);
+    tft.drawDisc(123, 4, 2);
   }
 }
 
-void drawHeader(const __FlashStringHelper *title) {
-  tft.fillScreen(ILI9341_BLACK);
-  tft.fillRect(0, 0, 320, 31, ILI9341_NAVY);
-  tft.setCursor(8, 8);
-  tft.setTextColor(ILI9341_WHITE);
-  tft.setTextSize(2);
-  tft.print(title);
+void drawHeader(const char *title) {
+  tft.clearBuffer();
+  drawText(0, 0, title);
+  tft.setDrawColor(1);
+  tft.drawHLine(0, 10, 128);
   drawConnectionDot();
 }
 
 void drawFooter() {
-  tft.fillRect(0, 220, 320, 20, ILI9341_BLACK);
-  tft.drawFastHLine(0, 219, 320, ILI9341_DARKGREY);
-  drawText(6, 225, timestamp().substring(11), ILI9341_LIGHTGREY, 1);
-  drawText(230, 225, sdReady ? "SD:OK" : "SD:ERR",
-           sdReady ? ILI9341_GREEN : ILI9341_RED, 1);
+  tft.setDrawColor(1);
+  tft.drawHLine(0, 53, 128);
+  String timeText = timestamp();
+  drawText(0, 56, timeText.length() >= 16 ? timeText.substring(11, 16) : timeText);
+  drawText(102, 56, sdReady ? "SD OK" : "SD --");
 }
 
-void drawBar(int16_t x, int16_t y, int16_t width, float value,
-             uint16_t normalColor = ILI9341_CYAN) {
-  value = constrain(value, 0, 100);
-  uint16_t color = value >= 90 ? ILI9341_RED : (value >= 75 ? ILI9341_ORANGE : normalColor);
-  tft.drawRect(x, y, width, 12, ILI9341_DARKGREY);
-  tft.fillRect(x + 2, y + 2, (width - 4) * value / 100.0, 8, color);
+void drawMenu(const char *const items[], uint8_t count, uint8_t selected) {
+  uint8_t first = 0;
+  if (count > 4 && selected > 1) {
+    first = selected - 1;
+    if (first > count - 4) first = count - 4;
+  }
+  for (uint8_t row = 0; row < 4 && first + row < count; row++) {
+    uint8_t index = first + row;
+    int16_t y = 13 + row * 10;
+    if (index == selected) {
+      tft.setDrawColor(1);
+      tft.drawRBox(0, y - 1, 128, 9, 2);
+      drawText(3, y, String("> ") + items[index], 0);
+    } else {
+      drawText(2, y, String("  ") + items[index]);
+    }
+  }
 }
 
 void drawHome() {
-  drawHeader(F("PC CONTROL PANEL"));
-  for (uint8_t i = 0; i < HOME_COUNT; i++) {
-    int16_t y = 41 + i * 28;
-    if (i == homeSelection) {
-      tft.fillRoundRect(8, y - 5, 304, 24, 4, ILI9341_BLUE);
-      drawText(16, y, String("> ") + homeItems[i], ILI9341_WHITE, 2);
-    } else {
-      drawText(16, y, String("  ") + homeItems[i], ILI9341_LIGHTGREY, 2);
-    }
-  }
+  drawHeader("PC PANEL");
+  drawMenu(homeItems, HOME_COUNT, homeSelection);
   drawFooter();
 }
 
-void drawMetric(int16_t y, const char *label, float value, const char *suffix,
-                bool showBar = true) {
-  // Only the value/bar area is cleared. This prevents visible full-screen
-  // redraw stripes in Wokwi and reduces flicker on the physical display.
-  tft.fillRect(102, y - 2, 214, 22, ILI9341_BLACK);
-  drawText(10, y, label, ILI9341_LIGHTGREY, 2);
-  char number[18];
-  dtostrf(value, 4, 1, number);
-  drawText(216, y, String(number) + suffix, ILI9341_WHITE, 2);
-  if (showBar) drawBar(105, y + 2, 100, value);
+void drawSystemValues() {
+  drawText(0, 13, "CPU " + String(systemData.cpuLoad, 0) + "%  " + String(systemData.cpuTemp, 0) + "C");
+  drawText(0, 23, "GPU " + String(systemData.gpuLoad, 0) + "%  " + String(systemData.gpuTemp, 0) + "C");
+  drawText(0, 33, "RAM " + String(systemData.ramUsed, 1) + "/" + String(systemData.ramTotal, 0) + "GB");
+  drawText(0, 43, "DSK " + String(systemData.diskUsed, 0) + "% D" + String(systemData.downloadMbps, 1));
 }
 
 void drawSystem() {
-  drawHeader(F("SYSTEM MONITOR"));
-  drawMetric(42, "CPU load", systemData.cpuLoad, "%");
-  drawMetric(70, "CPU temp", systemData.cpuTemp, "C", false);
-  drawMetric(98, "GPU load", systemData.gpuLoad, "%");
-  drawMetric(126, "GPU temp", systemData.gpuTemp, "C", false);
-  float ramPercent = systemData.ramTotal > 0 ? systemData.ramUsed * 100.0 / systemData.ramTotal : 0;
-  drawMetric(154, "RAM", ramPercent, "%");
-  drawMetric(182, "Disk", systemData.diskUsed, "%");
+  drawHeader("SYSTEM");
+  drawSystemValues();
   drawFooter();
 }
 
+void drawWeatherValues() {
+  drawText(0, 13, weatherData.city + "  " + String(weatherData.temperature, 1) + "C");
+  drawText(0, 23, weatherData.condition);
+  drawText(0, 33, "Feels " + String(weatherData.feelsLike, 1) + "C");
+  drawText(0, 43, "Hum " + String(weatherData.humidity) + "% Wind " + String(weatherData.wind, 1));
+}
+
 void drawWeather() {
-  drawHeader(F("WEATHER"));
-  drawText(12, 42, weatherData.city, ILI9341_CYAN, 3);
-  drawText(12, 78, String(weatherData.temperature, 1) + " C", ILI9341_YELLOW, 4);
-  drawText(174, 82, weatherData.condition, ILI9341_WHITE, 2);
-  drawText(12, 132, "Feels like:", ILI9341_LIGHTGREY, 2);
-  drawText(190, 132, String(weatherData.feelsLike, 1) + " C", ILI9341_WHITE, 2);
-  drawText(12, 158, "Humidity:", ILI9341_LIGHTGREY, 2);
-  drawText(190, 158, String(weatherData.humidity) + "%", ILI9341_WHITE, 2);
-  drawText(12, 184, "Wind:", ILI9341_LIGHTGREY, 2);
-  drawText(190, 184, String(weatherData.wind, 1) + " m/s", ILI9341_WHITE, 2);
+  drawHeader("WEATHER");
+  drawWeatherValues();
   drawFooter();
 }
 
 void drawLauncher() {
-  drawHeader(F("APPLICATIONS"));
-  for (uint8_t i = 0; i < LAUNCHER_COUNT; i++) {
-    int16_t y = 45 + i * 32;
-    uint16_t color = i == launcherSelection ? ILI9341_WHITE : ILI9341_LIGHTGREY;
-    if (i == launcherSelection) tft.fillRoundRect(10, y - 6, 300, 27, 4, ILI9341_PURPLE);
-    drawText(18, y, String(i == launcherSelection ? "> " : "  ") + launcherItems[i], color, 2);
-  }
+  drawHeader("APPS");
+  drawMenu(launcherItems, LAUNCHER_COUNT, launcherSelection);
   drawFooter();
 }
 
 void drawMedia() {
-  drawHeader(F("MULTIMEDIA"));
-  drawText(28, 52, "M1  Previous track", ILI9341_WHITE, 2);
-  drawText(28, 86, "M2  Play / Pause", ILI9341_WHITE, 2);
-  drawText(28, 120, "M3  Next track", ILI9341_WHITE, 2);
-  drawText(28, 154, "M4  Mute", ILI9341_WHITE, 2);
-  drawText(28, 190, "Encoder: volume", ILI9341_CYAN, 2);
+  drawHeader("MEDIA");
+  drawText(0, 13, "M1 Previous");
+  drawText(0, 23, "M2 Play/Pause");
+  drawText(0, 33, "M3 Next   M4 Mute");
+  drawText(0, 43, "Rotate: volume");
   drawFooter();
+}
+
+void drawLogsValues() {
+  drawText(0, 13, String("SD: ") + (sdReady ? "READY" : "ERROR"));
+  drawText(0, 23, String("Logging: ") + (loggingEnabled ? "ON" : "OFF"));
+  drawText(0, 33, "Interval: " + String(logIntervalSec) + "s");
+  drawText(0, 43, "Records: " + String(logRecords));
 }
 
 void drawLogs() {
-  drawHeader(F("LOGGING"));
-  drawText(14, 48, "SD card:", ILI9341_LIGHTGREY, 2);
-  drawText(178, 48, sdReady ? "READY" : "ERROR", sdReady ? ILI9341_GREEN : ILI9341_RED, 2);
-  drawText(14, 82, "Logging:", ILI9341_LIGHTGREY, 2);
-  drawText(178, 82, loggingEnabled ? "ON" : "OFF", loggingEnabled ? ILI9341_GREEN : ILI9341_ORANGE, 2);
-  drawText(14, 116, "Interval:", ILI9341_LIGHTGREY, 2);
-  drawText(178, 116, String(logIntervalSec) + " sec", ILI9341_WHITE, 2);
-  drawText(14, 150, "Records:", ILI9341_LIGHTGREY, 2);
-  drawText(178, 150, String(logRecords), ILI9341_WHITE, 2);
-  drawText(14, 190, "SYSTEM.CSV / EVENTS.CSV", ILI9341_CYAN, 1);
+  drawHeader("LOGS");
+  drawLogsValues();
   drawFooter();
 }
 
-void drawSettings() {
-  drawHeader(F("SETTINGS"));
-  const char *labels[] = {"Log interval", "Demo mode", "Sound", "Logging"};
-  for (uint8_t i = 0; i < 4; i++) {
-    int16_t y = 50 + i * 38;
-    if (i == settingsSelection) tft.fillRoundRect(10, y - 7, 300, 29, 4, ILI9341_BLUE);
-    drawText(18, y, String(i == settingsSelection ? "> " : "  ") + labels[i], ILI9341_WHITE, 2);
+void drawSettingsItem(uint8_t index, bool selected) {
+  const char *labels[] = {"Interval", "Demo", "Sound", "Logging"};
+  String value;
+  switch (index) {
+    case 0: value = String(logIntervalSec) + "s"; break;
+    case 1: value = demoMode ? "ON" : "OFF"; break;
+    case 2: value = soundEnabled ? "ON" : "OFF"; break;
+    default: value = loggingEnabled ? "ON" : "OFF"; break;
   }
-  drawText(205, 50, String(logIntervalSec) + "s", ILI9341_YELLOW, 2);
-  drawText(230, 88, demoMode ? "ON" : "OFF", ILI9341_YELLOW, 2);
-  drawText(230, 126, soundEnabled ? "ON" : "OFF", ILI9341_YELLOW, 2);
-  drawText(230, 164, loggingEnabled ? "ON" : "OFF", ILI9341_YELLOW, 2);
-  drawText(28, 202, "Press encoder to change", ILI9341_CYAN, 1);
+  int16_t y = 13 + index * 10;
+  if (selected) {
+    tft.setDrawColor(1);
+    tft.drawRBox(0, y - 1, 128, 9, 2);
+    drawText(3, y, String("> ") + labels[index] + " " + value, 0);
+  } else {
+    drawText(2, y, String("  ") + labels[index] + " " + value);
+  }
+}
+
+void drawSettings() {
+  drawHeader("SETTINGS");
+  for (uint8_t i = 0; i < 4; i++) drawSettingsItem(i, i == settingsSelection);
   drawFooter();
 }
 
 void drawCurrentScreen() {
+  digitalWrite(SD_CS, HIGH);
   switch (currentScreen) {
     case SCREEN_HOME: drawHome(); break;
     case SCREEN_SYSTEM: drawSystem(); break;
@@ -327,6 +321,7 @@ void drawCurrentScreen() {
     case SCREEN_LOGS: drawLogs(); break;
     case SCREEN_SETTINGS: drawSettings(); break;
   }
+  tft.sendBuffer();
   needsRedraw = false;
   dynamicDataDirty = false;
   lastDraw = millis();
@@ -334,34 +329,7 @@ void drawCurrentScreen() {
 }
 
 void refreshDynamicContent() {
-  // Static menus never need repainting. Telemetry screens update only their
-  // changing values instead of clearing the complete TFT framebuffer.
-  if (currentScreen == SCREEN_SYSTEM) {
-    drawMetric(42, "CPU load", systemData.cpuLoad, "%");
-    drawMetric(70, "CPU temp", systemData.cpuTemp, "C", false);
-    drawMetric(98, "GPU load", systemData.gpuLoad, "%");
-    drawMetric(126, "GPU temp", systemData.gpuTemp, "C", false);
-    float ramPercent = systemData.ramTotal > 0
-      ? systemData.ramUsed * 100.0 / systemData.ramTotal : 0;
-    drawMetric(154, "RAM", ramPercent, "%");
-    drawMetric(182, "Disk", systemData.diskUsed, "%");
-  } else if (currentScreen == SCREEN_WEATHER) {
-    // Weather arrives much less often, so repainting its content area is fine.
-    tft.fillRect(0, 32, 320, 187, ILI9341_BLACK);
-    drawText(12, 42, weatherData.city, ILI9341_CYAN, 3);
-    drawText(12, 78, String(weatherData.temperature, 1) + " C", ILI9341_YELLOW, 4);
-    drawText(174, 82, weatherData.condition, ILI9341_WHITE, 2);
-    drawText(12, 132, "Feels like:", ILI9341_LIGHTGREY, 2);
-    drawText(190, 132, String(weatherData.feelsLike, 1) + " C", ILI9341_WHITE, 2);
-    drawText(12, 158, "Humidity:", ILI9341_LIGHTGREY, 2);
-    drawText(190, 158, String(weatherData.humidity) + "%", ILI9341_WHITE, 2);
-    drawText(12, 184, "Wind:", ILI9341_LIGHTGREY, 2);
-    drawText(190, 184, String(weatherData.wind, 1) + " m/s", ILI9341_WHITE, 2);
-  } else if (currentScreen == SCREEN_LOGS) {
-    tft.fillRect(170, 142, 140, 24, ILI9341_BLACK);
-    drawText(178, 150, String(logRecords), ILI9341_WHITE, 2);
-  }
-  dynamicDataDirty = false;
+  drawCurrentScreen();
 }
 
 String valueForKey(const String &line, const String &key) {
@@ -458,6 +426,7 @@ bool pressed(uint8_t pin) {
 void enterSelected() {
   if (currentScreen == SCREEN_HOME) {
     currentScreen = static_cast<Screen>(homeSelection + 1);
+    needsRedraw = true;
   } else if (currentScreen == SCREEN_LAUNCHER) {
     sendCommand(String("LAUNCH=") + launcherSelection);
   } else if (currentScreen == SCREEN_SETTINGS) {
@@ -470,9 +439,9 @@ void enterSelected() {
       case 3: loggingEnabled = !loggingEnabled; break;
     }
     appendEvent("SETTING", String(settingsSelection));
+    needsRedraw = true;
   }
   beep();
-  needsRedraw = true;
 }
 
 void handleInput() {
@@ -480,14 +449,16 @@ void handleInput() {
   if (delta) {
     if (currentScreen == SCREEN_HOME) {
       homeSelection = (homeSelection + delta + HOME_COUNT) % HOME_COUNT;
+      needsRedraw = true;
     } else if (currentScreen == SCREEN_LAUNCHER) {
       launcherSelection = (launcherSelection + delta + LAUNCHER_COUNT) % LAUNCHER_COUNT;
+      needsRedraw = true;
     } else if (currentScreen == SCREEN_SETTINGS) {
       settingsSelection = (settingsSelection + delta + 4) % 4;
+      needsRedraw = true;
     } else if (currentScreen == SCREEN_MEDIA) {
       sendCommand(delta > 0 ? "VOLUME=UP" : "VOLUME=DOWN");
     }
-    needsRedraw = true;
   }
 
   if (pressed(ENC_SW)) enterSelected();
@@ -540,9 +511,7 @@ void setup() {
   Serial.begin(115200);
   serialLine.reserve(224);
 
-  pinMode(TFT_CS, OUTPUT);
   pinMode(SD_CS, OUTPUT);
-  digitalWrite(TFT_CS, HIGH);
   digitalWrite(SD_CS, HIGH);
 
   const uint8_t inputPins[] = {ENC_CLK, ENC_DT, ENC_SW, BTN_BACK, BTN_HOME, BTN_M1, BTN_M2, BTN_M3, BTN_M4};
@@ -552,15 +521,18 @@ void setup() {
   pinMode(LED_B, OUTPUT);
   pinMode(BUZZER, OUTPUT);
 
-  tft.begin();
-  tft.setRotation(1);
-  tft.fillScreen(ILI9341_BLACK);
-  drawText(35, 82, "PC CONTROL PANEL", ILI9341_CYAN, 3);
-  drawText(82, 126, "Starting...", ILI9341_WHITE, 2);
-
   Wire.begin();
+  tft.begin();
+  tft.setFontMode(1);
+  tft.setFontPosTop();
+  tft.clearBuffer();
+  drawText(19, 15, "PC PANEL", 1, 1);
+  drawText(37, 34, "Starting...", 1, 1);
+  tft.sendBuffer();
+
   rtcReady = rtc.begin();
   sdReady = SD.begin(SD_CS);
+  digitalWrite(SD_CS, HIGH);
 
   if (sdReady) appendEvent("BOOT", "PANEL_STARTED");
   Serial.println(F("READY,protocol=1,baud=115200"));
@@ -585,9 +557,7 @@ void loop() {
   } else {
     if (dynamicDataDirty) refreshDynamicContent();
     if (millis() - lastFooterDraw >= 1000) {
-      drawFooter();
-      drawConnectionDot();
-      lastFooterDraw = millis();
+      needsRedraw = true;
     }
   }
 }
